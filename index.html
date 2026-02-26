@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ANPR Control Panel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f9;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: auto;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+        }
+
+        .card h3 {
+            margin-top: 0;
+        }
+
+        button {
+            padding: 8px 14px;
+            margin: 5px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-green { background: #28a745; color: white; }
+        .btn-red { background: #dc3545; color: white; }
+        .btn-blue { background: #007bff; color: white; }
+        .btn-grey { background: #6c757d; color: white; }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        li {
+            padding: 6px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+
+        #lastImage {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        .status {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <h1>ANPR Control Panel</h1>
+
+    <!-- CONTROL PANEL -->
+    <div class="card">
+        <h3>System Control</h3>
+
+        <button class="btn-green" onclick="startANPR()">Start ANPR</button>
+        <button class="btn-red" onclick="stopANPR()">Stop ANPR</button>
+
+        <hr>
+
+        <h4>MOT Checking</h4>
+        <button class="btn-green" onclick="toggleMOT(true)">Enable</button>
+        <button class="btn-red" onclick="toggleMOT(false)">Disable</button>
+        <p>Status: <span id="motStatus" class="status">Loading...</span></p>
+
+        <hr>
+
+        <h4>Image Saving</h4>
+        <button class="btn-green" onclick="toggleImages(true)">Enable</button>
+        <button class="btn-red" onclick="toggleImages(false)">Disable</button>
+        <p id="imageStatus"></p>
+
+        <hr>
+
+        <h4>Show Last Image</h4>
+        <button class="btn-blue" onclick="toggleLastImage(true)">Show</button>
+        <button class="btn-grey" onclick="toggleLastImage(false)">Hide</button>
+        <p id="displayStatus"></p>
+    </div>
+
+    <!-- PLATES -->
+    <div class="card">
+        <h3>Detected Plates</h3>
+        <ul id="plateList"></ul>
+    </div>
+
+    <!-- LAST IMAGE -->
+    <div class="card" id="imageCard" style="display:none;">
+        <h3>Last Captured Image</h3>
+        <img id="lastImage" src="" />
+    </div>
+
+</div>
+
+<script>
+
+function startANPR() { fetch('/startANPR', { method: 'POST' }); }
+function stopANPR() { fetch('/stopANPR', { method: 'POST' }); }
+
+function toggleImages(state) {
+    fetch("/toggle_images", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ enabled: state })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("imageStatus").innerText =
+            "Image Saving: " + (data.save_images ? "ON" : "OFF");
+    });
+}
+
+function toggleMOT(state) {
+    fetch(state ? "/startMOT" : "/stopMOT", { method: "POST" })
+        .then(() => updateMOTStatus());
+}
+
+function updateMOTStatus() {
+    fetch("/mot_status")
+        .then(res => res.json())
+        .then(data => {
+            const status = document.getElementById("motStatus");
+            if (data.mot_enabled) {
+                status.innerText = "ON";
+                status.style.color = "green";
+            } else {
+                status.innerText = "OFF";
+                status.style.color = "red";
+            }
+        });
+}
+
+function toggleLastImage(state) {
+    const card = document.getElementById("imageCard");
+    card.style.display = state ? "block" : "none";
+    document.getElementById("displayStatus").innerText =
+        "Display: " + (state ? "ON" : "OFF");
+}
+function loadPlates() {
+    fetch('/plates')
+        .then(response => response.json())
+        .then(data => {
+            const list = document.getElementById("plateList");
+            list.innerHTML = "";
+
+            data.forEach(item => {
+                const li = document.createElement("li");
+
+                let colour = "black";
+                let motText = item.mot; // <-- just the string from backend
+
+                if (item.mot.includes("Valid until")) {
+                    colour = "green";
+                }
+                else if (item.mot.includes("Expired")) {
+                    colour = "red";
+                }
+                else if (item.mot.includes("Cooldown")) {
+                    colour = "blue";
+                }
+                else if (item.mot.includes("Reg Not Found")) {
+                    colour = "orange";
+                }
+                else if (item.mot.includes("Error") || item.mot.includes("MOT Failed")) {
+                    colour = "red";
+                }
+
+                li.innerHTML = `
+                    ${item.time} - ${item.plate} -
+                    <span style="color:${colour}; font-weight:bold;">
+                        ${motText}
+                    </span>
+                `;
+
+                list.appendChild(li);
+            });
+        });
+}
+
+function loadLastImage() {
+    const img = document.getElementById("lastImage");
+    img.src = "/last_image?t=" + new Date().getTime();
+}
+
+updateMOTStatus();
+setInterval(loadPlates, 2000);
+setInterval(loadLastImage, 2000);
+
+</script>
+</body>
+</html>
