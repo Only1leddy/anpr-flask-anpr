@@ -1,0 +1,5 @@
+flask
+paddleocr
+opencv-python
+requests
+numpy
