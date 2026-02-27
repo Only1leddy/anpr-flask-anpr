@@ -46,7 +46,7 @@ http://localhost:5000
 
 app.py – Flask backend  
 index.html – Web interface  
-ocr_pipeline.py – PaddleOCR integration  
+PaddleOCR6.py – PaddleOCR integration  
 
 ---
 
